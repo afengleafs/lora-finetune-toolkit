@@ -11,15 +11,17 @@ setup(
     python_requires=">=3.10",
     install_requires=[
         "torch>=2.0.0",
-        "transformers>=4.40.0",
+        "transformers>=4.40.0,<5.0.0",
         "peft>=0.8.0",
         "trl>=0.7.0",
         "datasets>=2.16.0",
-        "bitsandbytes>=0.42.0",
         "accelerate>=0.25.0",
         "pyyaml>=6.0",
     ],
     extras_require={
+        "gpu": [
+            "bitsandbytes>=0.42.0",
+        ],
         "dev": [
             "pytest>=7.0.0",
             "black>=23.0.0",

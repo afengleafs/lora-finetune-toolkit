@@ -93,7 +93,14 @@ class LoRATrainer:
             SFTConfig for training.
         """
         train_config = self.config.get("training", {})
-        
+        optim = train_config.get("optim", "paged_adamw_8bit")
+        if optim in {"paged_adamw_8bit", "adamw_8bit"}:
+            try:
+                import bitsandbytes  # noqa: F401
+            except ImportError:
+                print("Warning: bitsandbytes is not installed, falling back to adamw_torch optimizer.")
+                optim = "adamw_torch"
+
         return SFTConfig(
             # Memory optimization
             gradient_checkpointing=train_config.get("gradient_checkpointing", True),
@@ -110,7 +117,7 @@ class LoRATrainer:
             # Training hyperparameters
             num_train_epochs=train_config.get("num_train_epochs", 10),
             learning_rate=train_config.get("learning_rate", 3e-4),
-            optim=train_config.get("optim", "paged_adamw_8bit"),
+            optim=optim,
             
             # Logging and output
             logging_steps=train_config.get("logging_steps", 10),

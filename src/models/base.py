@@ -36,7 +36,7 @@ class BaseModelAdapter(ABC):
         """Return the HuggingFace model identifier."""
         pass
     
-    def get_quantization_config(self) -> BitsAndBytesConfig:
+    def get_quantization_config(self) -> Optional[BitsAndBytesConfig]:
         """
         Create BitsAndBytes quantization configuration.
         
@@ -44,6 +44,15 @@ class BaseModelAdapter(ABC):
             BitsAndBytesConfig for 4-bit quantization.
         """
         quant_config = self.config.get("quantization", {})
+        if not quant_config.get("load_in_4bit", True):
+            return None
+
+        try:
+            import bitsandbytes  # noqa: F401
+        except ImportError:
+            print("Warning: bitsandbytes is not installed, disabling 4-bit quantization.")
+            return None
+
         compute_dtype = get_compute_dtype(
             quant_config.get("bnb_4bit_compute_dtype", "float32")
         )
@@ -88,18 +97,22 @@ class BaseModelAdapter(ABC):
         """
         model_config = self.config.get("model", {})
         device_map = device_map or model_config.get("device_map", "auto")
+        quantization_config = self.get_quantization_config()
         
         # Load base model with quantization
-        self.model = AutoModelForCausalLM.from_pretrained(
-            self.model_name,
-            device_map=device_map,
-            quantization_config=self.get_quantization_config(),
-            trust_remote_code=True,
-        )
-        
-        # Prepare for k-bit training
-        self.model = prepare_model_for_kbit_training(self.model)
-        
+        load_kwargs = {
+            "device_map": device_map,
+            "trust_remote_code": True,
+        }
+        if quantization_config is not None:
+            load_kwargs["quantization_config"] = quantization_config
+
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, **load_kwargs)
+
+        # Prepare for k-bit training when quantization is enabled
+        if quantization_config is not None:
+            self.model = prepare_model_for_kbit_training(self.model)
+
         # Apply LoRA
         self.model = get_peft_model(self.model, self.get_lora_config())
         
