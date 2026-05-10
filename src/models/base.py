@@ -109,6 +109,21 @@ class BaseModelAdapter(ABC):
 
         self.model = AutoModelForCausalLM.from_pretrained(self.model_name, **load_kwargs)
 
+        # Training cannot proceed if the model was partially offloaded to CPU/disk/meta.
+        # This usually means 4-bit quantization is unavailable and the full model does
+        # not fit on the selected accelerator(s).
+        device_map_values = getattr(self.model, "hf_device_map", None)
+        has_offload = False
+        if isinstance(device_map_values, dict):
+            has_offload = any(v in {"cpu", "disk", "meta"} for v in device_map_values.values())
+        has_meta_params = any(param.device.type == "meta" for param in self.model.parameters())
+        if has_offload or has_meta_params:
+            raise RuntimeError(
+                "Model was offloaded to CPU/disk/meta during loading, which is not supported "
+                "for this training setup. Install `bitsandbytes` to enable 4-bit QLoRA, "
+                "or use a smaller model / explicit GPU device map that fits fully in VRAM."
+            )
+
         # Prepare for k-bit training when quantization is enabled
         if quantization_config is not None:
             self.model = prepare_model_for_kbit_training(self.model)

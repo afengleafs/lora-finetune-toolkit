@@ -101,6 +101,12 @@ class LoRATrainer:
                 print("Warning: bitsandbytes is not installed, falling back to adamw_torch optimizer.")
                 optim = "adamw_torch"
 
+        max_length = train_config.get(
+            "max_length",
+            train_config.get("max_seq_length", 1024),
+        )
+        bf16 = bool(torch.cuda.is_available() and torch.cuda.is_bf16_supported())
+
         return SFTConfig(
             # Memory optimization
             gradient_checkpointing=train_config.get("gradient_checkpointing", True),
@@ -110,7 +116,7 @@ class LoRATrainer:
             auto_find_batch_size=train_config.get("auto_find_batch_size", True),
             
             # Dataset
-            max_seq_length=train_config.get("max_seq_length", 1024),
+            max_length=max_length,
             packing=train_config.get("packing", False),
             dataset_text_field="text",
             
@@ -126,7 +132,7 @@ class LoRATrainer:
             report_to="none",
             
             # Precision
-            bf16=torch.cuda.is_bf16_supported(including_emulation=False),
+            bf16=bf16,
             
             # Save
             save_strategy=train_config.get("save_strategy", "epoch"),
